@@ -1,76 +1,38 @@
-# Copyright 2019 - 2021 The MathWorks, Inc.
+##FROM mathworks/matlab-deps as prebuilder
+#LABEL  MAINTAINER=EISCAT
+####USER root
+####WORKDIR /root
+ARG MATLAB_RELEASE=r2021b
+FROM mathworks/matlab-deps:latest
+ARG MATLAB_RELEASE
+# install docker and eiscat tools
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && \
+    apt-get install --no-install-recommends --yes \
+        vim wget unzip \
+ bzip2 lbzip2 octave ffmpeg \
+ gzip ghostscript libimage-exiftool-perl curl \
+ gcc libc6-dev libfftw3-3 libgfortran5 \
+ python3 python3-pip python3-matplotlib \
+        ca-certificates && \
+    apt-get clean && apt-get autoremove && rm -rf /var/lib/apt/lists/*
 
-# We use the latest dependency container for MathWorks products. You can find more 
-# info on the variety of different tags available for the dependency container and 
-# the Dockerfiles used to build them at https://github.com/mathworks-ref-arch/container-images/tree/master/matlab-deps
-FROM mathworks/matlab-deps as prebuilder
-
-LABEL  MAINTAINER=EISCAT
-
-# To avoid inadvertently polluting the / directory, use root's home directory 
-# while running MATLAB.
-USER root
-WORKDIR /root
-
-#### Install MATLAB in a multi-build style ####
-FROM prebuilder as middle-stage
-
-######
-# Create a self-contained MATLAB installer using these instructions:
-#
-# https://www.mathworks.com/help/install/ug/download-only.html
-#
-# You must be an administrator on your license to complete this workflow
-# You can run the installer on any platform to create a self-contained MATLAB installer
-# When creating the installer, on the "Folder and Platform Selection" screen, select "Linux (64-bit)"
-#
-# Put the installer in a directory called matlab-install
-# Move that matlab-install folder to be in the same folder as this Dockerfile
-######
-
-# Add MATLAB installer to the image
-ADD matlab-install /matlab-install/
-
-# Copy the file matlab-install/installer_input.txt into the same folder as the 
-# Dockerfile. The edit this file to specify what you want to install. NOTE that 
-# at a minimum you will need to have changed the following set of parameters in 
-# the file.
-#   fileInstallationKey
-#   agreeToLicense=yes
-#   Uncomment products you want to install
-ADD matlab_installer_input.txt /matlab_installer_input.txt
+#ADD matlab_installer_input.txt /matlab_installer_input.txt
 
 # Now install MATLAB (make sure that the install script is executable)
-RUN cd /matlab-install && \
-    chmod +x ./install && \
-    ./install -mode silent \
-        -inputFile /matlab_installer_input.txt \
-        -outputFile /tmp/mlinstall.log \
-        -destinationFolder /usr/local/MATLAB \
-    ; EXIT=$? && cat /tmp/mlinstall.log && test $EXIT -eq 0
-
-
-#### Build final container image ####
-FROM prebuilder
-
-COPY --from=middle-stage /usr/local/MATLAB /usr/local/MATLAB
+RUN wget -q https://www.mathworks.com/mpm/glnxa64/mpm && \ 
+    chmod +x mpm && \
+    ./mpm install \
+        --release=${MATLAB_RELEASE} \
+        --destination=/opt/matlab \
+        --products MATLAB && \
+    rm -f mpm /tmp/mathworks_root.log
 
 # Add a script to start MATLAB and soft link into /usr/local/bin
 ADD startmatlab.sh /opt/startscript/
 RUN chmod +x /opt/startscript/startmatlab.sh && \
-    ln -s /usr/local/MATLAB/R2021b/bin/matlab /usr/local/bin/matlab
+    ln -s /opt/matlab/bin/matlab /usr/local/bin/matlab
 
-# install eiscat tools
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --no-install-recommends -y \
- bzip2 lbzip2 octave ffmpeg \
- gzip ghostscript libimage-exiftool-perl curl \
- gcc libc6-dev libfftw3-3 libgfortran5 \
- python3 python3-pip \
- && apt-get clean \
- && apt-get -y autoremove \
- && rm -rf /var/lib/apt/lists/*
-
-RUN cd /usr/local/MATLAB/R2021b/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
+RUN cd /opt/matlab/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
 ADD pkgs/*.deb /tmp/
 RUN for i in /tmp/*deb; do dpkg -i $i && rm $i; done
@@ -107,6 +69,7 @@ RUN mkdir /home/medusa/gup/mygup /home/medusa/gup/results
 ENV DISPLAY :0
 
 #ENTRYPOINT ["/opt/startscript/startmatlab.sh"]
+ENTRYPOINT ["/usr/bin/bash"]
 #ENTRYPOINT ["/usr/bin/guisdap"]
 #ENTRYPOINT ["/usr/bin/rtg -o"]
 #ENTRYPOINT ["/usr/bin/python3"]
