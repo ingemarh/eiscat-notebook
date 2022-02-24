@@ -122,8 +122,10 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
 # Switch back to notebook user
 USER $NB_USER
 
-# Install integration
+# Install integrations
 RUN python -m pip install jupyter-matlab-proxy
+RUN pip install octave_kernel
+ARG OCTAVE_EXECUTABLE=/usr/bin/octave
 
 # Ensure jupyter-server-proxy JupyterLab extension is installed
 RUN jupyter labextension install @jupyterlab/server-proxy
@@ -137,6 +139,7 @@ ENV MLM_LICENSE_FILE=27000@hqserv
    
 RUN mkdir /home/$NB_USER/tmp /home/$NB_USER/gup
 RUN mkdir /home/$NB_USER/gup/mygup /home/$NB_USER/gup/results
+COPY pkgs/*.m /home/$NB_USER/
 
 #ENTRYPOINT ["/usr/bin/bash"]
 #ENTRYPOINT ["/usr/bin/guisdap"]
