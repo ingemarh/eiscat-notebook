@@ -96,8 +96,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     sudo \
     unzip \
     zlib1g \
-        vim wget unzip \
- bzip2 lbzip2 octave ffmpeg \
+ vim wget unzip openssh-client \ 
+ bzip2 lbzip2 octave ffmpeg gnuplot-qt \
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
  python3 python3-pip python3-matplotlib \
@@ -105,7 +105,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-#RUN cd /opt/matlab/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
+RUN cd /usr/local/MATLAB/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
 # Install pithia tools
 ADD pkgs/*.deb /tmp/
@@ -118,6 +118,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     xvfb \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
 
 # Switch back to notebook user
 USER $NB_USER
@@ -140,6 +141,7 @@ ENV MLM_LICENSE_FILE=27000@hqserv
 RUN mkdir /home/$NB_USER/tmp /home/$NB_USER/gup
 RUN mkdir /home/$NB_USER/gup/mygup /home/$NB_USER/gup/results
 COPY pkgs/*.m /home/$NB_USER/
+COPY pkgs/RTG.m /home/$NB_USER/work/
 
 #ENTRYPOINT ["/usr/bin/bash"]
 #ENTRYPOINT ["/usr/bin/guisdap"]
