@@ -96,7 +96,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     sudo \
     unzip \
     zlib1g \
- vim wget unzip openssh-client \ 
+ vim wget unzip openssh-client git \ 
  bzip2 lbzip2 octave ffmpeg gnuplot-qt \
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
