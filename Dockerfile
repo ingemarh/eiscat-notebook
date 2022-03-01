@@ -96,7 +96,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     sudo \
     unzip \
     zlib1g \
- vim wget unzip openssh-client git telnet \ 
+ vim wget unzip openssh-client git telnet curl unzip \ 
  bzip2 lbzip2 octave ffmpeg gnuplot-qt \
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
@@ -108,8 +108,11 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
 RUN cd /usr/local/MATLAB/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
 # Install pithia tools
-ADD pkgs/*.deb /tmp/
-RUN for i in /tmp/*deb; do dpkg -i $i && rm $i; done
+#ADD pkgs/*.deb /tmp/
+RUN cd /tmp && curl -qOJ https://cloud.eiscat.se/s/XGm8jnePJWCwP3A/download && \
+    unzip pkg.zip && \
+    for i in /tmp/pkg/*deb; do dpkg -i $i && rm $i; done && \
+    rm -rf /tmp/pkg*
 COPY pkgs/*.tar.gz /tmp/
 RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
 
