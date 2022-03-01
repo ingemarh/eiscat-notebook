@@ -1,5 +1,4 @@
-# Copyright 2021 The MathWorks, Inc.
-
+# Jupyter with EISCAT tools
 # Argument shared across multi-stage build to hold location of installed MATLAB 
 ARG BASE_ML_INSTALL_LOC=/tmp/matlab-install-location
 
@@ -97,7 +96,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     unzip \
     zlib1g \
  vim wget unzip openssh-client git telnet curl unzip \ 
- bzip2 lbzip2 octave ffmpeg gnuplot-qt \
+ bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
  python3 python3-pip python3-matplotlib \
@@ -122,6 +121,8 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
+    && chmod 0440 /etc/sudoers.d/$NB_USER
 
 # Switch back to notebook user
 USER $NB_USER
