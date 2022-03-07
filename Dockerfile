@@ -21,6 +21,16 @@ RUN export ML_INSTALL_LOC=$(which matlab) \
     fi
 
 FROM jupyter/base-notebook
+# name your environment and choose the python version
+ARG conda_env=python38
+ARG py_ver=3.8
+ARG PYTHON_VERSION=3.8
+RUN mamba create --quiet --yes -p "${CONDA_DIR}/envs/${conda_env}" python=${py_ver} ipython ipykernel && \
+    mamba clean --all -f -y
+RUN "${CONDA_DIR}/envs/${conda_env}/bin/python" -m ipykernel install --user --name="${conda_env}" && \
+    fix-permissions "${CONDA_DIR}" && \
+    fix-permissions "/home/${NB_USER}"
+
 ARG BASE_ML_INSTALL_LOC
 
 # Switch to root user
@@ -99,10 +109,12 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
  bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
- python3 python3-pip python3-matplotlib \
+ python3 python3-pip python3-matplotlib python3-numpy \
     && apt-get clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
+
+#RUN apt-get install update-manager-core && do-release-upgrade -d
 
 RUN cd /usr/local/MATLAB/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
@@ -130,7 +142,9 @@ USER $NB_USER
 # Install integrations
 RUN python -m pip install jupyter-matlab-proxy
 RUN pip install octave_kernel
+#RUN pip install python3-matplotlib python3-numpy
 ARG OCTAVE_EXECUTABLE=/usr/bin/octave
+WORKDIR /home/$NB_USER
 
 # Ensure jupyter-server-proxy JupyterLab extension is installed
 RUN jupyter labextension install @jupyterlab/server-proxy
@@ -142,6 +156,7 @@ ENV MLM_LICENSE_FILE=27000@hqserv
 # server you want to use and uncomment the following line.
 # ADD network.lic /usr/local/MATLAB/licenses/
    
+RUN git clone https://github.com/ingemarh/lpgen.git
 RUN mkdir /home/$NB_USER/tmp /home/$NB_USER/gup
 RUN mkdir /home/$NB_USER/gup/mygup /home/$NB_USER/gup/results
 COPY pkgs/*.m /home/$NB_USER/
