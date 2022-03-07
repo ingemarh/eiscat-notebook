@@ -2,9 +2,9 @@
 # Argument shared across multi-stage build to hold location of installed MATLAB 
 ARG BASE_ML_INSTALL_LOC=/tmp/matlab-install-location
 
-# Replace "mathworks/matlab:r2021b" with any Docker image that contains MATLAB
 # MATLAB should be available on the path in the Docker image
-FROM mathworks/matlab:r2021b AS matlab-install-stage
+#FROM mathworks/matlab:r2021b AS matlab-install-stage
+FROM mathworks/matlab AS matlab-install-stage
 ARG BASE_ML_INSTALL_LOC
 
 # Run code to locate a MATLAB install in the base image and softlink
@@ -20,7 +20,9 @@ RUN export ML_INSTALL_LOC=$(which matlab) \
         echo "Proceeding with user provided path to MATLAB installation: ${BASE_ML_INSTALL_LOC}"; \
     fi
 
+# name your environment and choose the python version
 FROM jupyter/base-notebook
+
 ARG BASE_ML_INSTALL_LOC
 
 # Switch to root user
@@ -99,10 +101,12 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
  bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
- python3 python3-pip python3-matplotlib \
+ python3 python3-pip python3-matplotlib python3-numpy \
     && apt-get clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
+
+#RUN apt-get install update-manager-core && do-release-upgrade -d
 
 RUN cd /usr/local/MATLAB/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
@@ -112,6 +116,8 @@ RUN cd /tmp && curl -qOJ https://cloud.eiscat.se/s/XGm8jnePJWCwP3A/download && \
     unzip pkg.zip && \
     for i in /tmp/pkg/*deb; do dpkg -i $i && rm $i; done && \
     rm -rf /tmp/pkg*
+COPY pkgs/*.tar.gz /tmp/
+RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
 COPY pkgs/*.tar.gz /tmp/
 RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
 
@@ -130,7 +136,9 @@ USER $NB_USER
 # Install integrations
 RUN python -m pip install jupyter-matlab-proxy
 RUN pip install octave_kernel
+RUN pip install matplotlib numpy
 ARG OCTAVE_EXECUTABLE=/usr/bin/octave
+WORKDIR /home/$NB_USER
 
 # Ensure jupyter-server-proxy JupyterLab extension is installed
 RUN jupyter labextension install @jupyterlab/server-proxy
@@ -142,6 +150,7 @@ ENV MLM_LICENSE_FILE=27000@hqserv
 # server you want to use and uncomment the following line.
 # ADD network.lic /usr/local/MATLAB/licenses/
    
+RUN git clone https://github.com/ingemarh/lpgen.git
 RUN mkdir /home/$NB_USER/tmp /home/$NB_USER/gup
 RUN mkdir /home/$NB_USER/gup/mygup /home/$NB_USER/gup/results
 COPY pkgs/*.m /home/$NB_USER/
