@@ -2,9 +2,9 @@
 # Argument shared across multi-stage build to hold location of installed MATLAB 
 ARG BASE_ML_INSTALL_LOC=/tmp/matlab-install-location
 
-# Replace "mathworks/matlab:r2021b" with any Docker image that contains MATLAB
 # MATLAB should be available on the path in the Docker image
-FROM mathworks/matlab:r2021b AS matlab-install-stage
+#FROM mathworks/matlab:r2021b AS matlab-install-stage
+FROM mathworks/matlab AS matlab-install-stage
 ARG BASE_ML_INSTALL_LOC
 
 # Run code to locate a MATLAB install in the base image and softlink
@@ -20,16 +20,8 @@ RUN export ML_INSTALL_LOC=$(which matlab) \
         echo "Proceeding with user provided path to MATLAB installation: ${BASE_ML_INSTALL_LOC}"; \
     fi
 
-FROM jupyter/base-notebook
 # name your environment and choose the python version
-ARG conda_env=python38
-ARG py_ver=3.8
-ARG PYTHON_VERSION=3.8
-RUN mamba create --quiet --yes -p "${CONDA_DIR}/envs/${conda_env}" python=${py_ver} ipython ipykernel && \
-    mamba clean --all -f -y
-RUN "${CONDA_DIR}/envs/${conda_env}/bin/python" -m ipykernel install --user --name="${conda_env}" && \
-    fix-permissions "${CONDA_DIR}" && \
-    fix-permissions "/home/${NB_USER}"
+FROM jupyter/base-notebook
 
 ARG BASE_ML_INSTALL_LOC
 
@@ -126,6 +118,8 @@ RUN cd /tmp && curl -qOJ https://cloud.eiscat.se/s/XGm8jnePJWCwP3A/download && \
     rm -rf /tmp/pkg*
 COPY pkgs/*.tar.gz /tmp/
 RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
+COPY pkgs/*.tar.gz /tmp/
+RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
 
 # Install jupyter-matlab-proxy dependencies
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --yes \
@@ -142,7 +136,7 @@ USER $NB_USER
 # Install integrations
 RUN python -m pip install jupyter-matlab-proxy
 RUN pip install octave_kernel
-#RUN pip install python3-matplotlib python3-numpy
+RUN pip install matplotlib numpy
 ARG OCTAVE_EXECUTABLE=/usr/bin/octave
 WORKDIR /home/$NB_USER
 
