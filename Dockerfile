@@ -153,7 +153,7 @@ ENV MLM_LICENSE_FILE=27000@hqserv
 RUN git clone https://github.com/ingemarh/lpgen.git
 RUN mkdir /home/$NB_USER/tmp /home/$NB_USER/gup
 RUN mkdir /home/$NB_USER/gup/mygup /home/$NB_USER/gup/results
-COPY pkgs/*.m /home/$NB_USER/
+COPY pkgs/*.m /usr/local/MATLAB/toolbox/local
 COPY pkgs/RTG.m /home/$NB_USER/work/
 
 #ENTRYPOINT ["/usr/bin/bash"]
