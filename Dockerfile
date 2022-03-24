@@ -1,162 +1,157 @@
-# Jupyter with EISCAT tools
-# Argument shared across multi-stage build to hold location of installed MATLAB 
-ARG BASE_ML_INSTALL_LOC=/tmp/matlab-install-location
+# Copyright 2021-2022 The MathWorks, Inc.
+# Builds Docker image with 
+# 1. MATLAB - Using MPM
+# 2. MATLAB Integration for Jupyter
+# on a base image of jupyter/base-notebook.
 
-# MATLAB should be available on the path in the Docker image
-#FROM mathworks/matlab:r2021b AS matlab-install-stage
-FROM mathworks/matlab AS matlab-install-stage
-ARG BASE_ML_INSTALL_LOC
+## Sample Build Command:
+# docker build --build-arg MATLAB_RELEASE=r2021b \
+#              --build-arg MATLAB_PRODUCT_LIST="MATLAB Deep_Learning_Toolbox Symbolic_Math_Toolbox"\
+#              --build-arg LICENSE_SERVER=12345@hostname.com \
+#              -t my_matlab_image_name .
 
-# Run code to locate a MATLAB install in the base image and softlink
-# to BASE_ML_INSTALL_LOC for a latter stage to copy 
-RUN export ML_INSTALL_LOC=$(which matlab) \
-    && if [ ! -z "$ML_INSTALL_LOC" ]; then \
-        ML_INSTALL_LOC=$(dirname $(dirname $(readlink -f ${ML_INSTALL_LOC}))); \
-        echo "soft linking: " $ML_INSTALL_LOC " to" ${BASE_ML_INSTALL_LOC}; \
-        ln -s ${ML_INSTALL_LOC} ${BASE_ML_INSTALL_LOC}; \
-    elif [ $BASE_ML_INSTALL_LOC = '/tmp/matlab-install-location' ]; then \
-        echo "MATLAB was not found in your image."; exit 1; \
-    else \
-        echo "Proceeding with user provided path to MATLAB installation: ${BASE_ML_INSTALL_LOC}"; \
-    fi
+# Specify release of MATLAB to build. (use lowercase, default is r2021b)
+ARG MATLAB_RELEASE=r2022a
 
-# name your environment and choose the python version
-FROM jupyter/base-notebook
+# Specify the list of products to install into MATLAB, 
+ARG MATLAB_PRODUCT_LIST="MATLAB"
 
-ARG BASE_ML_INSTALL_LOC
+# Optional Network License Server information
+ARG LICENSE_SERVER
+
+# If LICENSE_SERVER is provided then SHOULD_USE_LICENSE_SERVER will be set to "_use_lm"
+#ARG SHOULD_USE_LICENSE_SERVER=${LICENSE_SERVER:+"_with_lm"}
+ARG SHOULD_USE_LICENSE_SERVER=${LICENSE_SERVER:+"_use_lm"}
+
+# Default DDUX information
+ARG MW_CONTEXT_TAGS=MATLAB_PROXY:JUPYTER:MPM:V1
+
+# Base Jupyter image without LICENSE_SERVER
+FROM jupyter/base-notebook AS base_jupyter_image
+
+# Base Jupyter image with LICENSE_SERVER
+#FROM jupyter/base-notebook AS base_jupyter_image_with_lm
+ARG LICENSE_SERVER
+# If license server information is available, then use it to set environment variable
+#ENV MLM_LICENSE_FILE=${LICENSE_SERVER}
+ENV MLM_LICENSE_FILE=27000@hqserv
+
+# Select base Jupyter image based on whether LICENSE_SERVER is provided
+FROM base_jupyter_image${SHOULD_USE_LICENSE_SERVER}
+ARG MW_CONTEXT_TAGS
+ARG MATLAB_RELEASE
+ARG MATLAB_PRODUCT_LIST
 
 # Switch to root user
 USER root
+ENV DEBIAN_FRONTEND="noninteractive" TZ="Etc/UTC"
 
-# Copy MATLAB install from supplied Docker image
-COPY --from=matlab-install-stage ${BASE_ML_INSTALL_LOC} /usr/local/MATLAB
+## Installing Dependencies for Ubuntu 20.04
+# For MATLAB : Get base-dependencies.txt from matlab-deps repository on GitHub
+# For mpm : wget, unzip, ca-certificates
+# For MATLAB Integration for Jupyter : xvfb
 
-# Put MATLAB on the PATH
-RUN ln -s /usr/local/MATLAB/bin/matlab /usr/local/bin/matlab
+# List of MATLAB Dependencies for Ubuntu 20.04 and specified MATLAB_RELEASE
+ARG MATLAB_DEPS_REQUIREMENTS_FILE="https://raw.githubusercontent.com/mathworks-ref-arch/container-images/main/matlab-deps/${MATLAB_RELEASE}/ubuntu20.04/base-dependencies.txt"
 
-## Install MATLAB dependencies
-# Please update this list for the version of MATLAB you are using.
-# Listed below are the dependencies of R2021b for Ubuntu 20.04
-# Reference: https://github.com/mathworks-ref-arch/container-images/tree/master/matlab-deps/r2021b
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --no-install-recommends -y \
-    ca-certificates \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libatspi2.0-0 \
-    libc6 \
-    libcairo-gobject2 \
-    libcairo2 \
-    libcap2 \
-    libcrypt1 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libfontconfig1 \
-    libgbm1 \
-    libgdk-pixbuf2.0-0 \
-    libglib2.0-0 \
-    libgomp1 \
-    libgstreamer-plugins-base1.0-0 \
-    libgstreamer1.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libodbc1 \
-    libpam0g \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libpangoft2-1.0-0 \
-    libpython3.9 \
-    libsm6 \
-    libsndfile1 \
-    libssl1.1 \
-    libuuid1 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb-dri3-0 \
-    libxcb1 \
-    libxcomposite1 \
-    libxcursor1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxft2 \
-    libxi6 \
-    libxinerama1 \
-    libxrandr2 \
-    libxrender1 \
-    libxt6 \
-    libxtst6 \
-    libxxf86vm1 \
-    locales \
-    locales-all \
-    make \
-    net-tools \
-    procps \
-    sudo \
+# Install dependencies
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update \
+    && apt-get install --no-install-recommends -y `wget -qO- ${MATLAB_DEPS_REQUIREMENTS_FILE}`\
+    wget \
     unzip \
-    zlib1g \
- vim wget unzip openssh-client git telnet curl unzip \ 
- bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
- gzip ghostscript libimage-exiftool-perl curl \
- gcc libc6-dev libfftw3-3 libgfortran5 \
- python3 python3-pip python3-matplotlib python3-numpy \
+    ca-certificates \
+    xvfb \
     && apt-get clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-#RUN apt-get install update-manager-core && do-release-upgrade -d
+# Run mpm to install MATLAB in the target location and delete the mpm installation afterwards
+RUN wget -q https://www.mathworks.com/mpm/glnxa64/mpm && \ 
+    chmod +x mpm && \
+    ./mpm install \
+    --release=${MATLAB_RELEASE} \
+    --destination=/opt/matlab \
+    --products ${MATLAB_PRODUCT_LIST} && \
+    rm -f mpm /tmp/mathworks_root.log && \
+    ln -s /opt/matlab/bin/matlab /usr/local/bin/matlab
 
-RUN cd /usr/local/MATLAB/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
+# Install patched glibc - See https://github.com/mathworks/build-glibc-bz-19329-patch
+WORKDIR /packages
+RUN export DEBIAN_FRONTEND=noninteractive &&\
+    wget -q https://github.com/mathworks/build-glibc-bz-19329-patch/releases/download/ubuntu-focal/all-packages.tar.gz &&\
+    tar -x -f all-packages.tar.gz \
+    --exclude glibc-*.deb \
+    --exclude libc6-dbg*.deb &&\
+    apt-get install --yes --no-install-recommends ./*.deb &&\
+    rm -fr /packages
+WORKDIR /
+
+# Installing MATLAB Engine for Python
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update \
+    && apt-get install --no-install-recommends -y  python3-distutils \
+    && apt-get clean \
+    && apt-get -y autoremove \
+    && rm -rf /var/lib/apt/lists/* \
+    && cd /opt/matlab/extern/engines/python \
+    && python setup.py install
+
+
+
+RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --no-install-recommends -y \
+ vim wget unzip openssh-client git telnet curl unzip \ 
+ bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
+ gzip ghostscript libimage-exiftool-perl curl \
+ gcc libc6-dev libfftw3-3 libgfortran5 \
+ dbus-x11 xfce4 xfce4-panel xfce4-session xfce4-settings xorg xubuntu-icon-theme \
+    && apt-get clean \
+    && apt-get -y autoremove \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN cd /opt/matlab/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
 # Install pithia tools
-#ADD pkgs/*.deb /tmp/
 RUN cd /tmp && curl -qOJ https://cloud.eiscat.se/s/XGm8jnePJWCwP3A/download && \
     unzip pkg.zip && \
     for i in /tmp/pkg/*deb; do dpkg -i $i && rm $i; done && \
     rm -rf /tmp/pkg*
-COPY pkgs/*.tar.gz /tmp/
-RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
-COPY pkgs/*.tar.gz /tmp/
-RUN for i in /tmp/*.tar.gz; do pip install $i && rm $i; done
+COPY pkgs/*.m /opt/matlab/toolbox/local/
+COPY pkgs/RTG*.m /usr/share/octave/site/m/
 
-# Install jupyter-matlab-proxy dependencies
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --yes \
-    xvfb \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+#RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
+#    && chmod 0440 /etc/sudoers.d/$NB_USER
 
-RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
-    && chmod 0440 /etc/sudoers.d/$NB_USER
+ARG TURBOVNC_VERSION=2.2.7
+RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb/download" -O turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
+   apt-get install -y -q ./turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
+   apt-get remove -y -q light-locker && \
+   rm ./turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
+   ln -s /opt/TurboVNC/bin/* /usr/local/bin/
+RUN chown -R $NB_UID:$NB_GID $HOME
+ADD desktop /opt/install
+RUN fix-permissions /opt/install
+
+
 
 # Switch back to notebook user
 USER $NB_USER
+WORKDIR /home/${NB_USER}
 
-# Install integrations
+# Install integration
 RUN python -m pip install jupyter-matlab-proxy
-RUN pip install octave_kernel
-RUN pip install matplotlib numpy
+RUN python -m pip install octave_kernel
+RUN python -m pip install matplotlib numpy
+COPY pkgs/*.tar.gz /tmp/
+#RUN for i in /tmp/*.tar.gz; do python -m pip install $i && rm $i; done
+RUN for i in /tmp/*.tar.gz; do python -m pip install $i; done
 ARG OCTAVE_EXECUTABLE=/usr/bin/octave
-WORKDIR /home/$NB_USER
+RUN cd /opt/install && \
+   conda env update -n base --file environment.yml
 
 # Ensure jupyter-server-proxy JupyterLab extension is installed
 RUN jupyter labextension install @jupyterlab/server-proxy
 
-ENV MLM_LICENSE_FILE=27000@hqserv
+# Make JupyterLab the default environment
+ENV JUPYTER_ENABLE_LAB="yes"
 
-# Alternatively you can put a license file (or license information) into the 
-# container. You should fill this file out with the details of the license 
-# server you want to use and uncomment the following line.
-# ADD network.lic /usr/local/MATLAB/licenses/
-   
-RUN git clone https://github.com/ingemarh/lpgen.git
-RUN mkdir /home/$NB_USER/tmp /home/$NB_USER/gup
-RUN mkdir /home/$NB_USER/gup/mygup /home/$NB_USER/gup/results
-COPY pkgs/*.m /usr/local/MATLAB/toolbox/local
-COPY pkgs/RTG.m /home/$NB_USER/work/
+ENV MW_CONTEXT_TAGS=${MW_CONTEXT_TAGS}
 
-#ENTRYPOINT ["/usr/bin/bash"]
-#ENTRYPOINT ["/usr/bin/guisdap"]
-#ENTRYPOINT ["/usr/bin/rtg -o"]
-#ENTRYPOINT ["/usr/bin/python3"]
