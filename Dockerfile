@@ -103,6 +103,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
  gzip ghostscript libimage-exiftool-perl curl \
  gcc libc6-dev libfftw3-3 libgfortran5 \
  dbus-x11 xfce4 xfce4-panel xfce4-session xfce4-settings xorg xubuntu-icon-theme \
+ tigervnc-scraping-server tigervnc-xorg-extension \
     && apt-get clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
