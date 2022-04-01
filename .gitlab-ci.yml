@@ -1,0 +1,46 @@
+image: docker:20
+
+services:
+  - docker:dind
+
+stages:
+  - build
+  - push
+
+default:
+  before_script:
+    - echo -n $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+
+Build:
+  stage: build
+  only:
+    - main
+  script:
+    - docker pull $CI_REGISTRY_IMAGE:latest || true
+    - >
+      docker build
+      --pull
+      --cache-from $CI_REGISTRY_IMAGE:latest
+      --label "title=$CI_PROJECT_TITLE"
+      --label "url=$CI_PROJECT_URL"
+      --label "created=$CI_JOB_STARTED_AT"
+      --label "revision=$CI_COMMIT_SHA"
+      --label "version=$CI_COMMIT_REF_NAME"
+      --tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+      .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  tags:
+    - docker
+
+Push latest:
+  variables:
+    GIT_STRATEGY: none
+  stage: push
+  only:
+    - main
+  script:
+    - docker pull $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+    - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:latest
+  tags:
+    - docker

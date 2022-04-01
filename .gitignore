@@ -1,0 +1,7 @@
+# Copyright 2019 - 2020 The MathWorks, Inc.
+matlab-install/
+<<<<<<< HEAD
+=======
+matlab_installer_input.txt
+>>>>>>> 0743ff0 (Initial commit)
+.vscode/
