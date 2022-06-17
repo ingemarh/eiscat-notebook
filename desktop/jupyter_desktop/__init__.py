@@ -12,10 +12,16 @@ def setup_desktop():
     sockets_dir = tempfile.mkdtemp()
     sockets_path = os.path.join(sockets_dir, 'vnc-socket')
     vncserver = which('vncserver')
+    x0vncserver = which('x0vncserver')
 
     if vncserver:
         vnc_args = [
             vncserver,
+        ]
+        socket_args = []
+    elif x0vncserver:
+        vnc_args = [
+            x0vncserver,
         ]
         socket_args = []
     else:

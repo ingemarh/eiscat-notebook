@@ -98,9 +98,9 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update \
 
 
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --no-install-recommends -y \
- vim wget unzip openssh-client git telnet curl unzip \ 
+ nano scite vim wget unzip openssh-client git telnet curl unzip \
  bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
- gzip ghostscript libimage-exiftool-perl curl \
+ gzip ghostscript libimage-exiftool-perl curl qpdfview \
  gcc libc6-dev libfftw3-3 libgfortran5 \
  dbus-x11 xfce4 xfce4-panel xfce4-session xfce4-settings xorg xubuntu-icon-theme \
  tigervnc-scraping-server tigervnc-xorg-extension \
