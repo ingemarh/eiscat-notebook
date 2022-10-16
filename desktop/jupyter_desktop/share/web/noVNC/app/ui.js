@@ -61,6 +61,14 @@ const UI = {
         // Translate the DOM
         l10n.translateDOM();
 
+        // We rely on modern APIs which might not be available in an
+        // insecure context
+        if (!window.isSecureContext) {
+            // FIXME: This gets hidden when connecting
+            UI.showStatus(_("HTTPS is required for full functionality"), 'error');
+        }
+
+        // Try to fetch version number
         fetch('./package.json')
             .then((response) => {
                 if (!response.ok) {
@@ -329,8 +337,6 @@ const UI = {
             .addEventListener('click', UI.toggleClipboardPanel);
         document.getElementById("noVNC_clipboard_text")
             .addEventListener('change', UI.clipboardSend);
-        document.getElementById("noVNC_clipboard_clear_button")
-            .addEventListener('click', UI.clipboardClear);
     },
 
     // Add a call to save settings when the element changes,
@@ -960,11 +966,6 @@ const UI = {
         Log.Debug("<< UI.clipboardReceive");
     },
 
-    clipboardClear() {
-        document.getElementById('noVNC_clipboard_text').value = "";
-        UI.rfb.clipboardPasteFrom("");
-    },
-
     clipboardSend() {
         const text = document.getElementById('noVNC_clipboard_text').value;
         Log.Debug(">> UI.clipboardSend: " + text.substr(0, 40) + "...");
@@ -1125,7 +1126,9 @@ const UI = {
             } else {
                 UI.showStatus(_("Failed to connect to server"), 'error');
             }
-        } else if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
+        }
+        // If reconnecting is allowed process it now
+        if (UI.getSetting('reconnect', false) === true && !UI.inhibitReconnect) {
             UI.updateVisualState('reconnecting');
 
             const delay = parseInt(UI.getSetting('reconnect_delay'));
@@ -1733,7 +1736,7 @@ const UI = {
 };
 
 // Set up translations
-const LINGUAS = ["cs", "de", "el", "es", "fr", "ja", "ko", "nl", "pl", "pt_BR", "ru", "sv", "tr", "zh_CN", "zh_TW"];
+const LINGUAS = ["cs", "de", "el", "es", "fr", "it", "ja", "ko", "nl", "pl", "pt_BR", "ru", "sv", "tr", "zh_CN", "zh_TW"];
 l10n.setup(LINGUAS);
 if (l10n.language === "en" || l10n.dictionary !== undefined) {
     UI.prime();

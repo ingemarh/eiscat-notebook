@@ -1026,17 +1026,21 @@ describe('Remote Frame Buffer Protocol Client', function () {
             client._rfbConnectionState = 'connecting';
         });
 
-        describe('ProtocolVersion', function () {
-            function sendVer(ver, client) {
-                const arr = new Uint8Array(12);
-                for (let i = 0; i < ver.length; i++) {
-                    arr[i+4] = ver.charCodeAt(i);
-                }
-                arr[0] = 'R'; arr[1] = 'F'; arr[2] = 'B'; arr[3] = ' ';
-                arr[11] = '\n';
-                client._sock._websocket._receiveData(arr);
+        function sendVer(ver, client) {
+            const arr = new Uint8Array(12);
+            for (let i = 0; i < ver.length; i++) {
+                arr[i+4] = ver.charCodeAt(i);
             }
+            arr[0] = 'R'; arr[1] = 'F'; arr[2] = 'B'; arr[3] = ' ';
+            arr[11] = '\n';
+            client._sock._websocket._receiveData(arr);
+        }
 
+        function sendSecurity(type, cl) {
+            cl._sock._websocket._receiveData(new Uint8Array([1, type]));
+        }
+
+        describe('ProtocolVersion', function () {
             describe('version parsing', function () {
                 it('should interpret version 003.003 as version 3.3', function () {
                     sendVer('003.003', client);
@@ -1048,9 +1052,9 @@ describe('Remote Frame Buffer Protocol Client', function () {
                     expect(client._rfbVersion).to.equal(3.3);
                 });
 
-                it('should interpret version 003.889 as version 3.3', function () {
+                it('should interpret version 003.889 as version 3.8', function () {
                     sendVer('003.889', client);
-                    expect(client._rfbVersion).to.equal(3.3);
+                    expect(client._rfbVersion).to.equal(3.8);
                 });
 
                 it('should interpret version 003.007 as version 3.7', function () {
@@ -1127,44 +1131,24 @@ describe('Remote Frame Buffer Protocol Client', function () {
 
         describe('Security', function () {
             beforeEach(function () {
-                client._rfbInitState = 'Security';
+                sendVer('003.008\n', client);
+                client._sock._websocket._getSentData();
             });
 
-            it('should simply receive the auth scheme when for versions < 3.7', function () {
-                client._rfbVersion = 3.6;
-                const authSchemeRaw = [1, 2, 3, 4];
-                const authScheme = (authSchemeRaw[0] << 24) + (authSchemeRaw[1] << 16) +
-                                  (authSchemeRaw[2] << 8) + authSchemeRaw[3];
-                client._sock._websocket._receiveData(new Uint8Array(authSchemeRaw));
-                expect(client._rfbAuthScheme).to.equal(authScheme);
-            });
-
-            it('should prefer no authentication is possible', function () {
-                client._rfbVersion = 3.7;
-                const authSchemes = [2, 1, 3];
+            it('should respect server preference order', function () {
+                const authSchemes = [ 6, 79, 30, 188, 16, 6, 1 ];
                 client._sock._websocket._receiveData(new Uint8Array(authSchemes));
-                expect(client._rfbAuthScheme).to.equal(1);
-                expect(client._sock).to.have.sent(new Uint8Array([1, 1]));
+                expect(client._sock).to.have.sent(new Uint8Array([30]));
             });
 
-            it('should choose for the most prefered scheme possible for versions >= 3.7', function () {
-                client._rfbVersion = 3.7;
-                const authSchemes = [2, 22, 16];
-                client._sock._websocket._receiveData(new Uint8Array(authSchemes));
-                expect(client._rfbAuthScheme).to.equal(22);
-                expect(client._sock).to.have.sent(new Uint8Array([22]));
-            });
-
-            it('should fail if there are no supported schemes for versions >= 3.7', function () {
+            it('should fail if there are no supported schemes', function () {
                 sinon.spy(client, "_fail");
-                client._rfbVersion = 3.7;
                 const authSchemes = [1, 32];
                 client._sock._websocket._receiveData(new Uint8Array(authSchemes));
                 expect(client._fail).to.have.been.calledOnce;
             });
 
-            it('should fail with the appropriate message if no types are sent for versions >= 3.7', function () {
-                client._rfbVersion = 3.7;
+            it('should fail with the appropriate message if no types are sent', function () {
                 const failureData = [0, 0, 0, 0, 6, 119, 104, 111, 111, 112, 115];
                 sinon.spy(client, '_fail');
                 client._sock._websocket._receiveData(new Uint8Array(failureData));
@@ -1175,7 +1159,6 @@ describe('Remote Frame Buffer Protocol Client', function () {
             });
 
             it('should transition to the Authentication state and continue on successful negotiation', function () {
-                client._rfbVersion = 3.7;
                 const authSchemes = [1, 1];
                 client._negotiateAuthentication = sinon.spy();
                 client._sock._websocket._receiveData(new Uint8Array(authSchemes));
@@ -1184,17 +1167,8 @@ describe('Remote Frame Buffer Protocol Client', function () {
             });
         });
 
-        describe('Authentication', function () {
-            beforeEach(function () {
-                client._rfbInitState = 'Security';
-            });
-
-            function sendSecurity(type, cl) {
-                cl._sock._websocket._receiveData(new Uint8Array([1, type]));
-            }
-
+        describe('Legacy Authentication', function () {
             it('should fail on auth scheme 0 (pre 3.7) with the given message', function () {
-                client._rfbVersion = 3.6;
                 const errMsg = "Whoopsies";
                 const data = [0, 0, 0, 0];
                 const errLen = errMsg.length;
@@ -1203,37 +1177,42 @@ describe('Remote Frame Buffer Protocol Client', function () {
                     data.push(errMsg.charCodeAt(i));
                 }
 
+                sendVer('003.006\n', client);
+                client._sock._websocket._getSentData();
+
                 sinon.spy(client, '_fail');
                 client._sock._websocket._receiveData(new Uint8Array(data));
                 expect(client._fail).to.have.been.calledWith(
                     'Security negotiation failed on authentication scheme (reason: Whoopsies)');
             });
 
-            it('should transition straight to SecurityResult on "no auth" (1) for versions >= 3.8', function () {
-                client._rfbVersion = 3.8;
+            it('should transition straight to ServerInitialisation on "no auth" for versions < 3.7', function () {
+                sendVer('003.006\n', client);
+                client._sock._websocket._getSentData();
+
+                client._sock._websocket._receiveData(new Uint8Array([0, 0, 0, 1]));
+                expect(client._rfbInitState).to.equal('ServerInitialisation');
+            });
+        });
+
+        describe('Authentication', function () {
+            beforeEach(function () {
+                sendVer('003.008\n', client);
+                client._sock._websocket._getSentData();
+            });
+
+            it('should transition straight to SecurityResult on "no auth" (1)', function () {
                 sendSecurity(1, client);
                 expect(client._rfbInitState).to.equal('SecurityResult');
             });
 
-            it('should transition straight to ServerInitialisation on "no auth" for versions < 3.8', function () {
-                client._rfbVersion = 3.7;
-                sendSecurity(1, client);
-                expect(client._rfbInitState).to.equal('ServerInitialisation');
-            });
-
             it('should fail on an unknown auth scheme', function () {
                 sinon.spy(client, "_fail");
-                client._rfbVersion = 3.8;
                 sendSecurity(57, client);
                 expect(client._fail).to.have.been.calledOnce;
             });
 
             describe('VNC Authentication (type 2) Handler', function () {
-                beforeEach(function () {
-                    client._rfbInitState = 'Security';
-                    client._rfbVersion = 3.8;
-                });
-
                 it('should fire the credentialsrequired event if missing a password', function () {
                     const spy = sinon.spy();
                     client.addEventListener("credentialsrequired", spy);
@@ -1273,12 +1252,74 @@ describe('Remote Frame Buffer Protocol Client', function () {
                 });
             });
 
-            describe('XVP Authentication (type 22) Handler', function () {
-                beforeEach(function () {
-                    client._rfbInitState = 'Security';
-                    client._rfbVersion = 3.8;
+            describe('ARD Authentication (type 30) Handler', function () {
+                it('should fire the credentialsrequired event if all credentials are missing', function () {
+                    const spy = sinon.spy();
+                    client.addEventListener("credentialsrequired", spy);
+                    client._rfbCredentials = {};
+                    sendSecurity(30, client);
+
+                    expect(client._rfbCredentials).to.be.empty;
+                    expect(spy).to.have.been.calledOnce;
+                    expect(spy.args[0][0].detail.types).to.have.members(["username", "password"]);
                 });
 
+                it('should fire the credentialsrequired event if some credentials are missing', function () {
+                    const spy = sinon.spy();
+                    client.addEventListener("credentialsrequired", spy);
+                    client._rfbCredentials = { password: 'password'};
+                    sendSecurity(30, client);
+
+                    expect(spy).to.have.been.calledOnce;
+                    expect(spy.args[0][0].detail.types).to.have.members(["username", "password"]);
+                });
+
+                it('should return properly encrypted credentials and public key', async function () {
+                    client._rfbCredentials = { username: 'user',
+                                               password: 'password' };
+                    sendSecurity(30, client);
+
+                    expect(client._sock).to.have.sent([30]);
+
+                    function byteArray(length) {
+                        return Array.from(new Uint8Array(length).keys());
+                    }
+
+                    let generator = [127, 255];
+                    let prime = byteArray(128);
+                    let serverPrivateKey = byteArray(128);
+                    let serverPublicKey = client._modPow(generator, serverPrivateKey, prime);
+
+                    let clientPrivateKey = byteArray(128);
+                    let clientPublicKey = client._modPow(generator, clientPrivateKey, prime);
+
+                    let padding = Array.from(byteArray(64), byte => String.fromCharCode(65+byte%26)).join('');
+
+                    await client._negotiateARDAuthAsync(generator, 128, prime, serverPublicKey, clientPrivateKey, padding);
+
+                    client._negotiateARDAuth();
+
+                    expect(client._rfbInitState).to.equal('SecurityResult');
+
+                    let expectEncrypted = new Uint8Array([
+                        232, 234, 159, 162, 170, 180, 138, 104, 164, 49, 53, 96, 20, 36, 21, 15,
+                        217, 219, 107, 173, 196, 60, 96, 142, 215, 71, 13, 185, 185, 47, 5, 175,
+                        151, 30, 194, 55, 173, 214, 141, 161, 36, 138, 146, 3, 178, 89, 43, 248,
+                        131, 134, 205, 174, 9, 150, 171, 74, 222, 201, 20, 2, 30, 168, 162, 123,
+                        46, 86, 81, 221, 44, 211, 180, 247, 221, 61, 95, 155, 157, 241, 76, 76,
+                        49, 217, 234, 75, 147, 237, 199, 159, 93, 140, 191, 174, 52, 90, 133, 58,
+                        243, 81, 112, 182, 64, 62, 149, 7, 151, 28, 36, 161, 247, 247, 36, 96,
+                        230, 95, 58, 207, 46, 183, 100, 139, 143, 155, 224, 43, 219, 3, 71, 139]);
+
+                    let output = new Uint8Array(256);
+                    output.set(expectEncrypted, 0);
+                    output.set(clientPublicKey, 128);
+
+                    expect(client._sock).to.have.sent(output);
+                });
+            });
+
+            describe('XVP Authentication (type 22) Handler', function () {
                 it('should fall through to standard VNC authentication upon completion', function () {
                     client._rfbCredentials = { username: 'user',
                                                target: 'target',
@@ -1327,8 +1368,6 @@ describe('Remote Frame Buffer Protocol Client', function () {
 
             describe('TightVNC Authentication (type 16) Handler', function () {
                 beforeEach(function () {
-                    client._rfbInitState = 'Security';
-                    client._rfbVersion = 3.8;
                     sendSecurity(16, client);
                     client._sock._websocket._getSentData();  // skip the security reply
                 });
@@ -1414,8 +1453,6 @@ describe('Remote Frame Buffer Protocol Client', function () {
 
             describe('VeNCrypt Authentication (type 19) Handler', function () {
                 beforeEach(function () {
-                    client._rfbInitState = 'Security';
-                    client._rfbVersion = 3.8;
                     sendSecurity(19, client);
                     expect(client._sock).to.have.sent(new Uint8Array([19]));
                 });
@@ -1426,16 +1463,68 @@ describe('Remote Frame Buffer Protocol Client', function () {
                     expect(client._fail).to.have.been.calledOnce;
                 });
 
-                it('should fail if the Plain authentication is not present', function () {
+                it('should fail if there are no supported subtypes', function () {
                     // VeNCrypt version
                     client._sock._websocket._receiveData(new Uint8Array([0, 2]));
                     expect(client._sock).to.have.sent(new Uint8Array([0, 2]));
                     // Server ACK.
                     client._sock._websocket._receiveData(new Uint8Array([0]));
-                    // Subtype list, only list subtype 1.
+                    // Subtype list
                     sinon.spy(client, "_fail");
-                    client._sock._websocket._receiveData(new Uint8Array([1, 0, 0, 0, 1]));
+                    client._sock._websocket._receiveData(new Uint8Array([2, 0, 0, 0, 9, 0, 0, 1, 4]));
                     expect(client._fail).to.have.been.calledOnce;
+                });
+
+                it('should support standard types', function () {
+                    // VeNCrypt version
+                    client._sock._websocket._receiveData(new Uint8Array([0, 2]));
+                    expect(client._sock).to.have.sent(new Uint8Array([0, 2]));
+                    // Server ACK.
+                    client._sock._websocket._receiveData(new Uint8Array([0]));
+                    // Subtype list
+                    client._sock._websocket._receiveData(new Uint8Array([2, 0, 0, 0, 2, 0, 0, 1, 4]));
+
+                    let expectedResponse = [];
+                    push32(expectedResponse, 2); // Chosen subtype.
+
+                    expect(client._sock).to.have.sent(new Uint8Array(expectedResponse));
+                });
+
+                it('should respect server preference order', function () {
+                    // VeNCrypt version
+                    client._sock._websocket._receiveData(new Uint8Array([0, 2]));
+                    expect(client._sock).to.have.sent(new Uint8Array([0, 2]));
+                    // Server ACK.
+                    client._sock._websocket._receiveData(new Uint8Array([0]));
+                    // Subtype list
+                    let subtypes = [ 6 ];
+                    push32(subtypes, 79);
+                    push32(subtypes, 30);
+                    push32(subtypes, 188);
+                    push32(subtypes, 256);
+                    push32(subtypes, 6);
+                    push32(subtypes, 1);
+                    client._sock._websocket._receiveData(new Uint8Array(subtypes));
+
+                    let expectedResponse = [];
+                    push32(expectedResponse, 30); // Chosen subtype.
+
+                    expect(client._sock).to.have.sent(new Uint8Array(expectedResponse));
+                });
+
+                it('should ignore redundant VeNCrypt subtype', function () {
+                    // VeNCrypt version
+                    client._sock._websocket._receiveData(new Uint8Array([0, 2]));
+                    expect(client._sock).to.have.sent(new Uint8Array([0, 2]));
+                    // Server ACK.
+                    client._sock._websocket._receiveData(new Uint8Array([0]));
+                    // Subtype list
+                    client._sock._websocket._receiveData(new Uint8Array([2, 0, 0, 0, 19, 0, 0, 0, 2]));
+
+                    let expectedResponse = [];
+                    push32(expectedResponse, 2); // Chosen subtype.
+
+                    expect(client._sock).to.have.sent(new Uint8Array(expectedResponse));
                 });
 
                 it('should support Plain authentication', function () {
@@ -1509,9 +1598,30 @@ describe('Remote Frame Buffer Protocol Client', function () {
             });
         });
 
+        describe('Legacy SecurityResult', function () {
+            beforeEach(function () {
+                sendVer('003.007\n', client);
+                client._sock._websocket._getSentData();
+                sendSecurity(1, client);
+                client._sock._websocket._getSentData();
+            });
+
+            it('should not include reason in securityfailure event', function () {
+                const spy = sinon.spy();
+                client.addEventListener("securityfailure", spy);
+                client._sock._websocket._receiveData(new Uint8Array([0, 0, 0, 2]));
+                expect(spy).to.have.been.calledOnce;
+                expect(spy.args[0][0].detail.status).to.equal(2);
+                expect('reason' in spy.args[0][0].detail).to.be.false;
+            });
+        });
+
         describe('SecurityResult', function () {
             beforeEach(function () {
-                client._rfbInitState = 'SecurityResult';
+                sendVer('003.008\n', client);
+                client._sock._websocket._getSentData();
+                sendSecurity(1, client);
+                client._sock._websocket._getSentData();
             });
 
             it('should fall through to ServerInitialisation on a response code of 0', function () {
@@ -1519,58 +1629,24 @@ describe('Remote Frame Buffer Protocol Client', function () {
                 expect(client._rfbInitState).to.equal('ServerInitialisation');
             });
 
-            it('should fail on an error code of 1 with the given message for versions >= 3.8', function () {
-                client._rfbVersion = 3.8;
-                sinon.spy(client, '_fail');
-                const failureData = [0, 0, 0, 1, 0, 0, 0, 6, 119, 104, 111, 111, 112, 115];
-                client._sock._websocket._receiveData(new Uint8Array(failureData));
-                expect(client._fail).to.have.been.calledWith(
-                    'Security negotiation failed on security result (reason: whoops)');
-            });
-
-            it('should fail on an error code of 1 with a standard message for version < 3.8', function () {
-                sinon.spy(client, '_fail');
-                client._rfbVersion = 3.7;
-                client._sock._websocket._receiveData(new Uint8Array([0, 0, 0, 1]));
-                expect(client._fail).to.have.been.calledWith(
-                    'Security handshake failed');
-            });
-
-            it('should result in securityfailure event when receiving a non zero status', function () {
-                const spy = sinon.spy();
-                client.addEventListener("securityfailure", spy);
-                client._sock._websocket._receiveData(new Uint8Array([0, 0, 0, 2]));
-                expect(spy).to.have.been.calledOnce;
-                expect(spy.args[0][0].detail.status).to.equal(2);
-            });
-
             it('should include reason when provided in securityfailure event', function () {
-                client._rfbVersion = 3.8;
                 const spy = sinon.spy();
                 client.addEventListener("securityfailure", spy);
                 const failureData = [0, 0, 0, 1, 0, 0, 0, 12, 115, 117, 99, 104,
                                      32, 102, 97, 105, 108, 117, 114, 101];
                 client._sock._websocket._receiveData(new Uint8Array(failureData));
+                expect(spy).to.have.been.calledOnce;
                 expect(spy.args[0][0].detail.status).to.equal(1);
                 expect(spy.args[0][0].detail.reason).to.equal('such failure');
             });
 
             it('should not include reason when length is zero in securityfailure event', function () {
-                client._rfbVersion = 3.9;
                 const spy = sinon.spy();
                 client.addEventListener("securityfailure", spy);
                 const failureData = [0, 0, 0, 1, 0, 0, 0, 0];
                 client._sock._websocket._receiveData(new Uint8Array(failureData));
+                expect(spy).to.have.been.calledOnce;
                 expect(spy.args[0][0].detail.status).to.equal(1);
-                expect('reason' in spy.args[0][0].detail).to.be.false;
-            });
-
-            it('should not include reason in securityfailure event for version < 3.8', function () {
-                client._rfbVersion = 3.6;
-                const spy = sinon.spy();
-                client.addEventListener("securityfailure", spy);
-                client._sock._websocket._receiveData(new Uint8Array([0, 0, 0, 2]));
-                expect(spy.args[0][0].detail.status).to.equal(2);
                 expect('reason' in spy.args[0][0].detail).to.be.false;
             });
         });
