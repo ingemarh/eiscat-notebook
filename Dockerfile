@@ -5,18 +5,19 @@ ARG MATLAB_PRODUCT_LIST="MATLAB"
 # Optional Network License Server information
 ARG LICENSE_SERVER
 # If LICENSE_SERVER is provided then SHOULD_USE_LICENSE_SERVER will be set to "_use_lm"
-#ARG SHOULD_USE_LICENSE_SERVER=${LICENSE_SERVER:+"_with_lm"}
-ARG SHOULD_USE_LICENSE_SERVER=${LICENSE_SERVER:+"_use_lm"}
+ARG SHOULD_USE_LICENSE_SERVER=${LICENSE_SERVER:+"_with_lm"}
+#ARG SHOULD_USE_LICENSE_SERVER=${LICENSE_SERVER:+"_use_lm"}
 # Default DDUX information
 ARG MW_CONTEXT_TAGS=MATLAB_PROXY:JUPYTER:MPM:V1
 
 # Base Jupyter image without LICENSE_SERVER
 #FROM jupyter/base-notebook AS base_jupyter_image
 #FROM jupyter/base-notebook:python-3.9 AS base_jupyter_image
-FROM jupyter/base-notebook:ubuntu-20.04 AS base_jupyter_image
+#FROM jupyter/base-notebook:ubuntu-20.04 AS base_jupyter_image
+FROM jupyter/base-notebook:ubuntu-22.04 AS base_jupyter_image
 
 # Base Jupyter image with LICENSE_SERVER
-#FROM jupyter/base-notebook AS base_jupyter_image_with_lm
+FROM jupyter/base-notebook:ubuntu-22.04 AS base_jupyter_image_with_lm
 ARG LICENSE_SERVER
 # If license server information is available, then use it to set environment variable
 #ENV MLM_LICENSE_FILE=${LICENSE_SERVER}
@@ -42,16 +43,28 @@ ARG MATLAB_DEPS_REQUIREMENTS_FILE="https://raw.githubusercontent.com/mathworks-r
 ARG MATLAB_DEPS_REQUIREMENTS_FILE_NAME="matlab-deps-${MATLAB_RELEASE}-base-dependencies.txt"
 
 # Install dependencies
+## MATLAB versions older than 22b need libpython3.9 which is only present in the deadsnakes PPA on ubuntu:22.04
 RUN wget ${MATLAB_DEPS_REQUIREMENTS_FILE} -O ${MATLAB_DEPS_REQUIREMENTS_FILE_NAME} \
-    && export DEBIAN_FRONTEND=noninteractive && apt-get update \
+    && apt-get update \
+    && export isJammy=`cat /etc/lsb-release | grep DISTRIB_RELEASE=22.04 | wc -l` \
+    && export needsPy39=`cat ${MATLAB_DEPS_REQUIREMENTS_FILE_NAME} | grep libpython3.9 | wc -l` \
+    && if [[ isJammy -eq 1 && needsPy39 -eq 1 ]] ; then apt-get install -y software-properties-common && add-apt-repository ppa:deadsnakes/ppa ; fi \
     && xargs -a ${MATLAB_DEPS_REQUIREMENTS_FILE_NAME} -r apt-get install --no-install-recommends -y \
-    wget \
     unzip \
     ca-certificates \
     xvfb \
     && apt-get clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/* ${MATLAB_DEPS_REQUIREMENTS_FILE_NAME}
+
+# Installing MATLAB Engine for Python
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y  python3-distutils \
+    && apt-get clean \
+    && apt-get -y autoremove \
+    && rm -rf /var/lib/apt/lists/* \
+    && cd /opt/matlab/extern/engines/python \
+    && python setup.py install || true
 
 # Run mpm to install MATLAB in the target location and delete the mpm installation afterwards
 RUN wget -q https://www.mathworks.com/mpm/glnxa64/mpm && \ 
@@ -63,30 +76,10 @@ RUN wget -q https://www.mathworks.com/mpm/glnxa64/mpm && \
     rm -f mpm /tmp/mathworks_root.log && \
     ln -s /opt/matlab/bin/matlab /usr/local/bin/matlab
 
-# Install patched glibc - See https://github.com/mathworks/build-glibc-bz-19329-patch
-WORKDIR /packages
-RUN export DEBIAN_FRONTEND=noninteractive &&\
-    wget -q https://github.com/mathworks/build-glibc-bz-19329-patch/releases/download/ubuntu-focal/all-packages.tar.gz &&\
-    tar -x -f all-packages.tar.gz \
-    --exclude glibc-*.deb \
-    --exclude libc6-dbg*.deb &&\
-    apt-get install --yes --no-install-recommends ./*.deb &&\
-    rm -fr /packages
-WORKDIR /
-
-# Installing MATLAB Engine for Python
-RUN export DEBIAN_FRONTEND=noninteractive && apt-get update \
-    && apt-get install --no-install-recommends -y  python3-distutils \
-    && apt-get clean \
-    && apt-get -y autoremove \
-    && rm -rf /var/lib/apt/lists/* \
-    && cd /opt/matlab/extern/engines/python \
-    && python setup.py install
-
 RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install --no-install-recommends -y \
  nano scite vim wget unzip openssh-client git telnet curl unzip \
  bzip2 lbzip2 octave ffmpeg gnuplot-qt fonts-freefont-otf \
- gzip ghostscript libimage-exiftool-perl curl qpdfview \
+ gzip ghostscript libimage-exiftool-perl qpdfview \
  gcc libc6-dev libfftw3-3 libgfortran5 \
  dbus-x11 xfce4 xfce4-panel xfce4-session xfce4-settings xorg xubuntu-icon-theme \
  tigervnc-scraping-server tigervnc-xorg-extension \
@@ -94,7 +87,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
 
-RUN cd /opt/matlab/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
+#RUN cd /opt/matlab/bin/glnxa64 && rm -f libtiff.so.5 libcurl.so.4
 
 # Install pithia tools
 RUN cd /tmp && curl -qOJ https://cloud.eiscat.se/s/XGm8jnePJWCwP3A/download && \
@@ -102,7 +95,8 @@ RUN cd /tmp && curl -qOJ https://cloud.eiscat.se/s/XGm8jnePJWCwP3A/download && \
     for i in /tmp/pkg/*deb; do dpkg -i $i && rm $i; done && \
     rm -rf /tmp/pkg*
 COPY pkgs/*.m /opt/matlab/toolbox/local/
-RUN echo -e 'opengl software\nopengl save software\n' >> /opt/matlab/toolbox/local/matlabrc.m
+COPY pkgs/mrc /tmp
+RUN cd /tmp && cat mrc >> /opt/matlab/toolbox/local/matlabrc.m && rm mrc
 COPY pkgs/RTG*.m /usr/share/octave/site/m/
 
 #RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
