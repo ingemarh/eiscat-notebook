@@ -1,3 +1,5 @@
+Based on https://github.com/jupyterhub/jupyter-remote-desktop-proxy
+
 # Jupyter Remote Desktop Proxy
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/jupyterhub/jupyter-remote-desktop-proxy/HEAD?urlpath=desktop)
 

@@ -102,7 +102,7 @@ COPY pkgs/RTG*.m /usr/share/octave/site/m/
 #RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
 #    && chmod 0440 /etc/sudoers.d/$NB_USER
 
-ARG TURBOVNC_VERSION=2.2.7
+ARG TURBOVNC_VERSION=3.0.1
 RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb/download" -O turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
    apt-get install -y -q ./turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
    apt-get remove -y -q light-locker && \
