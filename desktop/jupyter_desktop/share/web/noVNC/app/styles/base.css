@@ -246,6 +246,9 @@ html {
   background-color: rgb(110, 132, 163);
   border-radius: 0 10px 10px 0;
 
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none; /* Disable iOS image long-press popup */
 }
 #noVNC_control_bar.noVNC_open {
   box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.5);
@@ -381,38 +384,41 @@ html {
 }
 
 /* Control bar buttons */
-.noVNC_button {
+#noVNC_control_bar .noVNC_button {
   padding: 4px 4px;
   vertical-align: middle;
   border:1px solid rgba(255, 255, 255, 0.2);
   border-radius: 6px;
 }
-.noVNC_button.noVNC_selected {
+#noVNC_control_bar .noVNC_button.noVNC_selected {
   border-color: rgba(0, 0, 0, 0.8);
   background: rgba(0, 0, 0, 0.5);
 }
-.noVNC_button:disabled {
+#noVNC_control_bar .noVNC_button:disabled {
   opacity: 0.4;
+  /* See firefox bug regarding cursor on disabled <input type="image">:
+     https://bugzilla.mozilla.org/show_bug.cgi?id=1798304 */
+  cursor: default;
 }
-.noVNC_button:focus {
+#noVNC_control_bar .noVNC_button:focus {
   outline: none;
 }
-.noVNC_button:not(:disabled):active {
+#noVNC_control_bar .noVNC_button:not(:disabled):active {
   padding-top: 5px;
   padding-bottom: 3px;
 }
 /* Android browsers don't properly update hover state if touch events
  * are intercepted, but focus should be safe to display */
-:root:not(.noVNC_touch) .noVNC_button.noVNC_selected:not(:disabled):hover,
-.noVNC_button.noVNC_selected:not(:disabled):focus {
+:root:not(.noVNC_touch) #noVNC_control_bar .noVNC_button.noVNC_selected:not(:disabled):hover,
+#noVNC_control_bar .noVNC_button.noVNC_selected:not(:disabled):focus {
   border-color: rgba(0, 0, 0, 0.4);
   background: rgba(0, 0, 0, 0.2);
 }
-:root:not(.noVNC_touch) .noVNC_button:not(:disabled):hover,
-.noVNC_button:not(:disabled):focus {
+:root:not(.noVNC_touch) #noVNC_control_bar .noVNC_button:not(:disabled):hover,
+#noVNC_control_bar .noVNC_button:not(:disabled):focus {
   background: rgba(255, 255, 255, 0.2);
 }
-.noVNC_button.noVNC_hidden {
+#noVNC_control_bar .noVNC_button.noVNC_hidden {
   display: none !important;
 }
 
@@ -527,6 +533,12 @@ html {
 
 #noVNC_control_bar .noVNC_logo {
   font-size: 13px;
+}
+
+.noVNC_logo + hr {
+    /* Remove all but top border */
+    border: none;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 :root:not(.noVNC_connected) #noVNC_view_drag_button {
@@ -834,6 +846,12 @@ html {
   background-color: #313131;
   border-bottom-right-radius: 800px 600px;
   /*border-top-left-radius: 800px 600px;*/
+
+  /* If selection isn't disabled, long-pressing stuff in the sidebar
+     can accidentally select the container or the canvas. This can
+     happen when attempting to move the handle. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 #noVNC_keyboardinput {

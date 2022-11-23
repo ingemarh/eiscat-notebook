@@ -103,10 +103,10 @@ COPY pkgs/RTG*.m /usr/share/octave/site/m/
 #    && chmod 0440 /etc/sudoers.d/$NB_USER
 
 ARG TURBOVNC_VERSION=3.0.1
-RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb/download" -O turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
-   apt-get install -y -q ./turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
+RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb/download" -O turbovnc_amd64.deb && \
+   apt-get install -y -q ./turbovnc_amd64.deb && \
    apt-get remove -y -q light-locker && \
-   rm ./turbovnc_${TURBOVNC_VERSION}_amd64.deb && \
+   rm ./turbovnc_amd64.deb && \
    ln -s /opt/TurboVNC/bin/* /usr/local/bin/
 RUN chown -R $NB_UID:$NB_GID $HOME
 ADD desktop /opt/install
