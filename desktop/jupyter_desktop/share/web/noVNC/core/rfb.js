@@ -62,6 +62,7 @@ const securityTypeTight             = 16;
 const securityTypeVeNCrypt          = 19;
 const securityTypeXVP               = 22;
 const securityTypeARD               = 30;
+const securityTypeMSLogonII         = 113;
 
 // Special Tight security types
 const securityTypeUnixLogon         = 129;
@@ -286,6 +287,7 @@ export default class RFB extends EventTargetMixin {
 
         this._viewOnly = false;
         this._clipViewport = false;
+        this._clippingViewport = false;
         this._scaleViewport = false;
         this._resizeSession = false;
 
@@ -316,6 +318,16 @@ export default class RFB extends EventTargetMixin {
     }
 
     get capabilities() { return this._capabilities; }
+
+    get clippingViewport() { return this._clippingViewport; }
+    _setClippingViewport(on) {
+        if (on === this._clippingViewport) {
+            return;
+        }
+        this._clippingViewport = on;
+        this.dispatchEvent(new CustomEvent("clippingviewport",
+                                           { detail: this._clippingViewport }));
+    }
 
     get touchButton() { return 0; }
     set touchButton(button) { Log.Warn("Using old API!"); }
@@ -748,6 +760,10 @@ export default class RFB extends EventTargetMixin {
             const size = this._screenSize();
             this._display.viewportChangeSize(size.w, size.h);
             this._fixScrollbars();
+            this._setClippingViewport(size.w < this._display.width ||
+                                      size.h < this._display.height);
+        } else {
+            this._setClippingViewport(false);
         }
 
         // When changing clipping we might show or hide scrollbars.
@@ -1392,6 +1408,7 @@ export default class RFB extends EventTargetMixin {
             securityTypeVeNCrypt,
             securityTypeXVP,
             securityTypeARD,
+            securityTypeMSLogonII,
             securityTypePlain,
         ];
 
@@ -1903,6 +1920,62 @@ export default class RFB extends EventTargetMixin {
         return false;
     }
 
+    _negotiateMSLogonIIAuth() {
+        if (this._sock.rQwait("mslogonii dh param", 24)) { return false; }
+
+        if (this._rfbCredentials.username === undefined ||
+            this._rfbCredentials.password === undefined) {
+            this.dispatchEvent(new CustomEvent(
+                "credentialsrequired",
+                { detail: { types: ["username", "password"] } }));
+            return false;
+        }
+
+        const g = this._sock.rQshiftBytes(8);
+        const p = this._sock.rQshiftBytes(8);
+        const A = this._sock.rQshiftBytes(8);
+        const b = window.crypto.getRandomValues(new Uint8Array(8));
+        const B = new Uint8Array(this._modPow(g, b, p));
+        const secret = new Uint8Array(this._modPow(A, b, p));
+
+        const des = new DES(secret);
+        const username = encodeUTF8(this._rfbCredentials.username).substring(0, 255);
+        const password = encodeUTF8(this._rfbCredentials.password).substring(0, 63);
+        const usernameBytes = new Uint8Array(256);
+        const passwordBytes = new Uint8Array(64);
+        window.crypto.getRandomValues(usernameBytes);
+        window.crypto.getRandomValues(passwordBytes);
+        for (let i = 0; i < username.length; i++) {
+            usernameBytes[i] = username.charCodeAt(i);
+        }
+        usernameBytes[username.length] = 0;
+        for (let i = 0; i < password.length; i++) {
+            passwordBytes[i] = password.charCodeAt(i);
+        }
+        passwordBytes[password.length] = 0;
+        let x = new Uint8Array(secret);
+        for (let i = 0; i < 32; i++) {
+            for (let j = 0; j < 8; j++) {
+                x[j] ^= usernameBytes[i * 8 + j];
+            }
+            x = des.enc8(x);
+            usernameBytes.set(x, i * 8);
+        }
+        x = new Uint8Array(secret);
+        for (let i = 0; i < 8; i++) {
+            for (let j = 0; j < 8; j++) {
+                x[j] ^= passwordBytes[i * 8 + j];
+            }
+            x = des.enc8(x);
+            passwordBytes.set(x, i * 8);
+        }
+        this._sock.send(B);
+        this._sock.send(usernameBytes);
+        this._sock.send(passwordBytes);
+        this._rfbInitState = "SecurityResult";
+        return true;
+    }
+
     _negotiateAuthentication() {
         switch (this._rfbAuthScheme) {
             case securityTypeNone:
@@ -1932,6 +2005,9 @@ export default class RFB extends EventTargetMixin {
 
             case securityTypeRA2ne:
                 return this._negotiateRA2neAuth();
+
+            case securityTypeMSLogonII:
+                return this._negotiateMSLogonIIAuth();
 
             default:
                 return this._fail("Unsupported auth scheme (scheme: " +

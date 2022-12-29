@@ -1,5 +1,4 @@
-9c13ea3dd29dc692395a74a92a2c786e9ff11c71		branch 'master' of github.com:novnc/noVNC
+3553a451d8b9cf566232b7de2e764861c57a0e9a		branch 'master' of github.com:novnc/noVNC
 115f89292e3dc777b6f2b87b1a61a7b57681b6c6	not-for-merge	branch 'localStorage' of github.com:novnc/noVNC
-47dbc65acf5cfc295942c02e50d6db2164200c97	not-for-merge	branch 'sauce' of github.com:novnc/noVNC
 5b78c230f96b23129abc9a067ac9283fe3147c41	not-for-merge	branch 'stable/v0.6' of github.com:novnc/noVNC
 876a691d2a376a2eda810a27097727ac35d910e5	not-for-merge	branch 'wasm' of github.com:novnc/noVNC
