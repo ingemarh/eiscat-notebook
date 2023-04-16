@@ -1,5 +1,5 @@
 # Specify release of MATLAB to build. (use lowercase, default is r2021b)
-ARG MATLAB_RELEASE=r2022b
+ARG MATLAB_RELEASE=r2023a
 # Specify the list of products to install into MATLAB, 
 ARG MATLAB_PRODUCT_LIST="MATLAB"
 # Optional Network License Server information
