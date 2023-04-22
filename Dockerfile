@@ -82,7 +82,7 @@ RUN export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -
  gzip ghostscript libimage-exiftool-perl qpdfview \
  gcc libc6-dev libfftw3-3 libgfortran5 \
  dbus-x11 xfce4 xfce4-panel xfce4-session xfce4-settings xorg xubuntu-icon-theme \
- tigervnc-scraping-server tigervnc-xorg-extension \
+ websockify \
     && apt-get clean \
     && apt-get -y autoremove \
     && rm -rf /var/lib/apt/lists/*
@@ -102,21 +102,12 @@ COPY pkgs/RTG*.m /usr/share/octave/site/m/
 #RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
 #    && chmod 0440 /etc/sudoers.d/$NB_USER
 
-ARG TURBOVNC_VERSION=3.0.3
-RUN wget -q "https://sourceforge.net/projects/turbovnc/files/${TURBOVNC_VERSION}/turbovnc_${TURBOVNC_VERSION}_amd64.deb/download" -O turbovnc_amd64.deb && \
-   apt-get install -y -q ./turbovnc_amd64.deb && \
-   apt-get remove -y -q light-locker && \
-   rm ./turbovnc_amd64.deb && \
-   ln -s /opt/TurboVNC/bin/* /usr/local/bin/
-RUN chown -R $NB_UID:$NB_GID $HOME
-ADD desktop /opt/install
-RUN fix-permissions /opt/install
-
 # Switch back to notebook user
 USER $NB_USER
 WORKDIR /home/${NB_USER}
 
 # Install integration
+RUN python -m pip install jupyter-remote-desktop-proxy
 RUN python -m pip install jupyter-matlab-proxy
 RUN python -m pip install octave_kernel
 RUN python -m pip install matplotlib numpy
@@ -124,8 +115,8 @@ RUN python -m pip install madrigalWeb
 #COPY pkgs/*.tar.gz /tmp/
 #RUN for i in /tmp/*.tar.gz; do python -m pip install $i; done
 ARG OCTAVE_EXECUTABLE=/usr/bin/octave
-RUN cd /opt/install && \
-   conda env update -n base --file environment.yml
+#RUN cd /opt/install && \
+#   conda env update -n base --file environment.yml
 
 # Ensure jupyter-server-proxy JupyterLab extension is installed
 RUN jupyter labextension install @jupyterlab/server-proxy
