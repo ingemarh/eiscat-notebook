@@ -12,12 +12,10 @@ ARG MW_CONTEXT_TAGS=MATLAB_PROXY:JUPYTER:MPM:V1
 
 # Base Jupyter image without LICENSE_SERVER
 #FROM jupyter/base-notebook AS base_jupyter_image
-#FROM jupyter/base-notebook:python-3.9 AS base_jupyter_image
-#FROM jupyter/base-notebook:ubuntu-20.04 AS base_jupyter_image
-FROM jupyter/base-notebook:ubuntu-22.04 AS base_jupyter_image
+FROM jupyter/base-notebook AS base_jupyter_image
 
 # Base Jupyter image with LICENSE_SERVER
-FROM jupyter/base-notebook:ubuntu-22.04 AS base_jupyter_image_with_lm
+FROM jupyter/base-notebook AS base_jupyter_image_with_lm
 ARG LICENSE_SERVER
 # If license server information is available, then use it to set environment variable
 #ENV MLM_LICENSE_FILE=${LICENSE_SERVER}
