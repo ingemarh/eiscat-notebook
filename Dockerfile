@@ -136,7 +136,12 @@ ARG OCTAVE_EXECUTABLE=/usr/bin/octave
 #   conda env update -n base --file environment.yml
 
 # Ensure jupyter-server-proxy JupyterLab extension is installed
-RUN jupyter labextension install @jupyterlab/server-proxy
+#RUN jupyter labextension install @jupyterlab/server-proxy
+
+RUN python -m pip install jupyterlab jupyter-dash jupyterlab-dash \
+ jupyterlab_widgets "ipywidgets>=7,<8"
+
+RUN jupyter labextension install jupyterlab-dash
 
 # Make JupyterLab the default environment
 ENV JUPYTER_ENABLE_LAB="yes"
