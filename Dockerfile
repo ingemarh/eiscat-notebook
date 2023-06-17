@@ -100,7 +100,7 @@ COPY pkgs/RTG*.m /usr/share/octave/site/m/
 #RUN echo "$NB_USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$NB_USER \
 #    && chmod 0440 /etc/sudoers.d/$NB_USER
 
-ENV JULIA_VERSION=1.8.5
+ENV JULIA_VERSION=1.9.1
 RUN mkdir /opt/julia-${JULIA_VERSION} && \
     cd /tmp && \
     wget -q https://julialang-s3.julialang.org/bin/linux/x64/`echo ${JULIA_VERSION} | cut -d. -f 1,2`/julia-${JULIA_VERSION}-linux-x86_64.tar.gz && \
