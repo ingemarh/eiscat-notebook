@@ -118,9 +118,9 @@ RUN julia -e 'import Pkg; Pkg.update()' && \
     julia -e 'import Pkg; Pkg.add("Distributions"); using Distributions' && \
     julia -e 'import Pkg; Pkg.add("Optim"); using Optim' && \  
     julia -e 'import Pkg; Pkg.add("FFTW"); using FFTW' && \  
-    # julia -e 'import Pkg; Pkg.add("StatsPlots"); using StatsPlots' && \  
     julia -e 'import Pkg; Pkg.add("DSP"); using DSP' && \  
     julia -e 'import Pkg; Pkg.add("IJulia"); using IJulia' && \
+    # julia -e 'import Pkg; Pkg.add("StatsPlots"); using StatsPlots' && \  
     fix-permissions /home/$NB_USER
 
 # Install integration
@@ -138,7 +138,8 @@ ARG OCTAVE_EXECUTABLE=/usr/bin/octave
 # Ensure jupyter-server-proxy JupyterLab extension is installed
 #RUN jupyter labextension install @jupyterlab/server-proxy
 
-RUN python -m pip install jupyterlab jupyter-dash jupyterlab-dash \
+#RUN python -m pip install jupyterlab jupyter-dash jupyterlab-dash \
+RUN python -m pip install jupyterlab \
  jupyterlab_widgets "ipywidgets>=7,<8"
 
 RUN jupyter labextension install jupyterlab-dash
