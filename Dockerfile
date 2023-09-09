@@ -120,6 +120,7 @@ RUN julia -e 'import Pkg; Pkg.update()' && \
     julia -e 'import Pkg; Pkg.add("FFTW"); using FFTW' && \  
     julia -e 'import Pkg; Pkg.add("DSP"); using DSP' && \  
     julia -e 'import Pkg; Pkg.add("IJulia"); using IJulia' && \
+    julia -e 'import Pkg; Pkg.build("IJulia"); using IJulia' && \
     # julia -e 'import Pkg; Pkg.add("StatsPlots"); using StatsPlots' && \  
     fix-permissions /home/$NB_USER
 
